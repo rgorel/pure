@@ -234,6 +234,23 @@ prompt_pure_async_vcs_info() {
 	print -r - ${(@kvq)info}
 }
 
+prompt_pure_async_git_dirty2() {
+	setopt localoptions noshwordsplit
+	local dir=$2
+	local response=''
+	local res
+
+	builtin cd -q $dir
+
+	command git diff --no-ext-diff --quiet --exit-code; r=$?
+	(( $r == 1 )) && response+='*'
+
+	command git status --porcelain |grep '??' 2> /dev/null > /dev/null; r=$?
+	(( $r == 0 )) && response+='+'
+
+	print $response
+}
+
 # fastest possible way to check if repo is dirty
 prompt_pure_async_git_dirty() {
 	setopt localoptions noshwordsplit
@@ -331,7 +348,7 @@ prompt_pure_async_refresh() {
 	if (( time_since_last_dirty_check > ${PURE_GIT_DELAY_DIRTY_CHECK:-1800} )); then
 		unset prompt_pure_git_last_dirty_check_timestamp
 		# check check if there is anything to pull
-		async_job "prompt_pure" prompt_pure_async_git_dirty ${PURE_GIT_UNTRACKED_DIRTY:-1} $PWD
+		async_job "prompt_pure" prompt_pure_async_git_dirty2 ${PURE_GIT_UNTRACKED_DIRTY:-1} $PWD
 	fi
 }
 
@@ -401,6 +418,14 @@ prompt_pure_async_callback() {
 			# To distinguish between a "fresh" and a "cached" result, the preprompt is rendered before setting this
 			# variable. Thus, only upon next rendering of the preprompt will the result appear in a different color.
 			(( $exec_time > 5 )) && prompt_pure_git_last_dirty_check_timestamp=$EPOCHSECONDS
+			;;
+		prompt_pure_async_git_dirty2)
+			local prev_dirty=$prompt_pure_git_dirty
+			prompt_pure_git_dirty=$output
+
+			[[ $prev_dirty != $prompt_pure_git_dirty ]] && prompt_pure_preprompt_render
+
+			(( $exec_time > 2 )) && prompt_pure_git_last_dirty_check_timestamp=$EPOCHSECONDS
 			;;
 		prompt_pure_async_git_fetch|prompt_pure_async_git_arrows)
 			# prompt_pure_async_git_fetch executes prompt_pure_async_git_arrows
